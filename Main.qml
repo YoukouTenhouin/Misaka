@@ -81,6 +81,12 @@ ApplicationWindow {
         }
         RowLayout {
             Layout.fillWidth: true
+            Button {
+                objectName: "playPause"
+                enabled: video.duration > 0
+                text: video.paused ? "继续播放" : "暂停"
+                onClicked: video.togglePause()
+            }
             Label { objectName: "clock"; text: Math.floor(video.position) + " / " + Math.floor(video.duration) + " 秒" }
             Slider {
                 id: slider

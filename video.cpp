@@ -75,7 +75,7 @@ void Video::play(const QString &video, const QString &audio) {
         return "%" + QByteArray::number(bytes.size()) + "%" + bytes;
     };
     const QByteArray source = "edl://" + segment(video) + ";!new_stream;" + segment(audio);
-    const char *args[] = {"loadfile", source.constData(), "replace", nullptr};
+    const char *args[] = {"loadfile", source.constData(), "replace", "-1", "pause=no", nullptr};
     if (mpv_command_async(m_player.get(), 0, args) < 0) emit failed(QStringLiteral("无法打开媒体"));
 }
 
@@ -83,6 +83,12 @@ void Video::seek(double seconds) {
     if (!m_player || m_duration <= 0) return;
     auto time = QByteArray::number(seconds);
     const char *args[] = {"seek", time.constData(), "absolute+exact", nullptr};
+    mpv_command_async(m_player.get(), 0, args);
+}
+
+void Video::togglePause() {
+    if (!m_player || m_duration <= 0) return;
+    const char *args[] = {"cycle", "pause", nullptr};
     mpv_command_async(m_player.get(), 0, args);
 }
 
@@ -95,6 +101,11 @@ void Video::poll() {
             auto *end = static_cast<mpv_event_end_file *>(event->data);
             if (end->error < 0) emit failed(QString::fromUtf8(mpv_error_string(end->error)));
         }
+    }
+    int paused = 0;
+    if (mpv_get_property(handle, "pause", MPV_FORMAT_FLAG, &paused) >= 0 && m_paused != bool(paused)) {
+        m_paused = paused;
+        emit pausedChanged();
     }
     double position = 0, duration = 0;
     mpv_get_property(handle, "time-pos", MPV_FORMAT_DOUBLE, &position);

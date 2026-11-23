@@ -49,6 +49,18 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(centerColor().red() > 200 && centerColor().blue() < 60, 8000);
         QTRY_VERIFY(item("timeline")->isEnabled());
         QVERIFY(item("clock")->property("text").toString().startsWith("0 / 10"));
+        auto *toggle = item("playPause");
+        QVERIFY(toggle);
+        click(toggle, 0.5);
+        QTRY_COMPARE(toggle->property("text").toString(), QStringLiteral("继续播放"));
+        click(item("timeline"), 0.33);
+        auto clockText = [&] { return item("clock")->property("text").toString(); };
+        QTRY_VERIFY(clockText().startsWith("3 /"));
+        QTest::qWait(1200);
+        QVERIFY(clockText().startsWith("3 /"));
+        click(toggle, 0.5);
+        QTRY_COMPARE(toggle->property("text").toString(), QStringLiteral("暂停"));
+        QTRY_VERIFY(clockText().startsWith("4 /"));
         QProcess monitor;
         const QString device = qEnvironmentVariable("MISAKA_TEST_MONITOR");
         if (!device.isEmpty()) {
