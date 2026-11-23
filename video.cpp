@@ -92,6 +92,23 @@ void Video::togglePause() {
     mpv_command_async(m_player.get(), 0, args);
 }
 
+void Video::setMuted(bool muted) {
+    int flag = muted;
+    if (!m_player || muted == m_muted) return;
+    if (mpv_set_property(m_player.get(), "mute", MPV_FORMAT_FLAG, &flag) < 0) return;
+    m_muted = muted;
+    emit mutedChanged();
+}
+
+void Video::setVolume(int volume) {
+    volume = qBound(0, volume, 100);
+    if (!m_player || volume == m_volume) return;
+    double level = volume;
+    if (mpv_set_property(m_player.get(), "volume", MPV_FORMAT_DOUBLE, &level) < 0) return;
+    m_volume = volume;
+    emit volumeChanged();
+}
+
 void Video::poll() {
     auto *handle = m_player.get();
     for (;;) {
