@@ -11,3 +11,13 @@ target_link_libraries(player PUBLIC Qt6::Quick Qt6::OpenGL PRIVATE ${MPV_LIBRARY
 add_executable(misaka main.cpp)
 target_link_libraries(misaka PRIVATE player)
 qt_add_resources(misaka ui PREFIX "/" FILES Main.qml)
+include(CTest)
+if(BUILD_TESTING)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_executable(playback_test tests/playback.cpp)
+    target_link_libraries(playback_test PRIVATE player Qt6::Test)
+    qt_add_resources(playback_test ui PREFIX "/" FILES Main.qml)
+    add_test(NAME playback COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixture.py $<TARGET_FILE:playback_test>)
+endif()
