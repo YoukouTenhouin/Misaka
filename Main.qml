@@ -12,6 +12,22 @@ ApplicationWindow {
     property int requestId: 0
     property string status: ""
 
+    function playbackTime(seconds) {
+        const total = Math.max(0, Math.floor(seconds))
+        const hours = Math.floor(total / 3600)
+        const minutes = Math.floor(total / 60) % 60
+        return [hours, minutes, total % 60].map(part => String(part).padStart(2, "0")).join(":")
+    }
+
+    component TransportButton: ToolButton {
+        display: AbstractButton.IconOnly
+        icon.width: 22
+        icon.height: 22
+        Accessible.name: text
+        ToolTip.visible: hovered
+        ToolTip.text: text
+    }
+
     function request(path, serial, callback) {
         const xhr = new XMLHttpRequest()
         xhr.open("GET", apiOrigin + path)
@@ -79,23 +95,55 @@ ApplicationWindow {
             Layout.fillHeight: true
             onFailed: message => root.status = message
         }
-        RowLayout {
+        ToolBar {
             Layout.fillWidth: true
-            Button {
-                objectName: "playPause"
-                enabled: video.duration > 0
-                text: video.paused ? "继续播放" : "暂停"
-                onClicked: video.togglePause()
-            }
-            Label { objectName: "clock"; text: Math.floor(video.position) + " / " + Math.floor(video.duration) + " 秒" }
-            Slider {
-                id: slider
-                objectName: "timeline"
-                Layout.fillWidth: true
-                enabled: video.duration > 0
-                to: Math.max(1, video.duration)
-                value: video.position
-                onMoved: video.seek(value)
+            contentItem: ColumnLayout {
+                spacing: 0
+                Slider {
+                    objectName: "timeline"
+                    Accessible.name: "播放进度"
+                    Layout.fillWidth: true
+                    enabled: video.duration > 0
+                    to: Math.max(1, video.duration)
+                    value: video.position
+                    onMoved: video.seek(value)
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 8
+                    Layout.rightMargin: 8
+                    TransportButton {
+                        objectName: "playPause"
+                        enabled: video.duration > 0
+                        text: video.paused ? "继续播放" : "暂停"
+                        icon.source: video.paused ? "qrc:/icons/play.svg" : "qrc:/icons/pause.svg"
+                        onClicked: video.togglePause()
+                    }
+                    Label {
+                        objectName: "clock"
+                        font.family: "monospace"
+                        text: root.playbackTime(video.position) + " / " + root.playbackTime(video.duration)
+                    }
+                    Item { Layout.fillWidth: true }
+                    TransportButton {
+                        objectName: "mute"
+                        text: video.muted ? "取消静音" : "静音"
+                        icon.source: video.muted ? "qrc:/icons/muted.svg" : "qrc:/icons/volume.svg"
+                        onClicked: video.muted = !video.muted
+                    }
+                    Slider {
+                        objectName: "volume"
+                        Layout.preferredWidth: 100
+                        Accessible.name: "音量"
+                        from: 0
+                        to: 100
+                        stepSize: 1
+                        value: video.volume
+                        onMoved: video.volume = value
+                        ToolTip.visible: hovered || pressed
+                        ToolTip.text: Math.round(value) + "%"
+                    }
+                }
             }
         }
     }

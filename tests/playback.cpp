@@ -13,6 +13,7 @@ class PlaybackTest : public QObject {
     Q_OBJECT
 private slots:
     void opensP1AndSeeks() {
+        QTest::failOnWarning(QRegularExpression(QStringLiteral(".*Cannot open file.*icons/.*[.]svg.*")));
         QQmlApplicationEngine engine;
         engine.rootContext()->setContextProperty("apiOrigin", qEnvironmentVariable("MISAKA_API"));
         engine.load(QUrl("qrc:/Main.qml"));
@@ -35,11 +36,11 @@ private slots:
             QVERIFY(clock);
             QElapsedTimer wait;
             wait.start();
-            while (wait.elapsed() < 20000 && clock->property("text").toString().startsWith("0 /"))
+            while (wait.elapsed() < 20000 && clock->property("text").toString().startsWith("00:00:00 /"))
                 QTest::qWait(50);
             qInfo() << window->property("status") << clock->property("text");
             QVERIFY(window->property("status").toString().startsWith("P1 ·"));
-            QVERIFY(!clock->property("text").toString().startsWith("0 /"));
+            QVERIFY(!clock->property("text").toString().startsWith("00:00:00 /"));
             return;
         }
         auto centerColor = [&] {
@@ -48,19 +49,31 @@ private slots:
         };
         QTRY_VERIFY_WITH_TIMEOUT(centerColor().red() > 200 && centerColor().blue() < 60, 8000);
         QTRY_VERIFY(item("timeline")->isEnabled());
-        QVERIFY(item("clock")->property("text").toString().startsWith("0 / 10"));
+        QVERIFY(item("clock")->property("text").toString().startsWith("00:00:00 / 00:00:10"));
         auto *toggle = item("playPause");
         QVERIFY(toggle);
         click(toggle, 0.5);
         QTRY_COMPARE(toggle->property("text").toString(), QStringLiteral("继续播放"));
+        auto *mute = item("mute");
+        auto *volume = item("volume");
+        QVERIFY(mute && volume);
+        click(volume, 0.55);
+        const int level = qRound(volume->property("value").toDouble());
+        QVERIFY(level > 45 && level < 65);
+        click(mute, 0.5);
+        QTRY_COMPARE(mute->property("text").toString(), QStringLiteral("取消静音"));
+        click(mute, 0.5);
+        QTRY_COMPARE(mute->property("text").toString(), QStringLiteral("静音"));
+        QCOMPARE(qRound(volume->property("value").toDouble()), level);
+        click(volume, 0.98);
         click(item("timeline"), 0.33);
         auto clockText = [&] { return item("clock")->property("text").toString(); };
-        QTRY_VERIFY(clockText().startsWith("3 /"));
+        QTRY_VERIFY(clockText().startsWith("00:00:03 /"));
         QTest::qWait(1200);
-        QVERIFY(clockText().startsWith("3 /"));
+        QVERIFY(clockText().startsWith("00:00:03 /"));
         click(toggle, 0.5);
         QTRY_COMPARE(toggle->property("text").toString(), QStringLiteral("暂停"));
-        QTRY_VERIFY(clockText().startsWith("4 /"));
+        QTRY_VERIFY(clockText().startsWith("00:00:04 /"));
         QProcess monitor;
         const QString device = qEnvironmentVariable("MISAKA_TEST_MONITOR");
         if (!device.isEmpty()) {
