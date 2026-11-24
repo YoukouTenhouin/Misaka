@@ -43,6 +43,9 @@ private slots:
         QTest::mouseClick(window, Qt::LeftButton, {}, action->mapToScene(action->boundingRect().center()).toPoint());
         QTRY_VERIFY(panel->property("qr").toString().startsWith("data:image/png"));
         QTRY_COMPARE(panel->property("identity").toString(), QStringLiteral("已登录 · 测试账号"));
+        auto *avatar = window->findChild<QQuickItem *>("accountAvatar");
+        QVERIFY(avatar && avatar->isVisible());
+        QTRY_COMPARE(avatar->property("status").toInt(), 1); // Image.Ready
         QVERIFY(account->saved);
     }
     void restoredSessionRefusedThenExpired() {
