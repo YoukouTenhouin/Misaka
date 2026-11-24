@@ -18,7 +18,13 @@ public:
     bool saved = false;
     void save() override { saved = true; }
     void restore() override { emit restored(existing); }
-    void clearSession() override { cleared = true; }
+    bool deletionWorks = true;
+    void clearSession() override {
+        setAllCookies({});
+        cleared = true;
+        if (deletionWorks) existing = false;
+        emit sessionCleared(deletionWorks);
+    }
 };
 
 class PlaybackTest : public QObject {
@@ -47,6 +53,55 @@ private slots:
         QVERIFY(avatar && avatar->isVisible());
         QTRY_COMPARE(avatar->property("status").toInt(), 1); // Image.Ready
         QVERIFY(account->saved);
+        auto *logout = window->findChild<QQuickItem *>("logoutAction");
+        QVERIFY(logout && logout->isVisible());
+        account->deletionWorks = false;
+        QVERIFY(QMetaObject::invokeMethod(logout, "click"));
+        QCOMPARE(panel->property("identity").toString(), QStringLiteral("未登录"));
+        QVERIFY(!avatar->isVisible());
+        QVERIFY(account->cookiesForUrl(QUrl(origin)).isEmpty());
+        auto *retry = window->findChild<QQuickItem *>("retryDelete");
+        QVERIFY(retry && retry->isVisible());
+        account->deletionWorks = true;
+        QVERIFY(QMetaObject::invokeMethod(retry, "click"));
+        QTRY_VERIFY(action->isEnabled());
+        QVERIFY(!retry->isVisible());
+    }
+    void logoutRestoredAccount_data() {
+        QTest::addColumn<bool>("delayed");
+        QTest::newRow("avatar unavailable") << false;
+        QTest::newRow("validation in flight") << true;
+    }
+    void logoutRestoredAccount() {
+        QFETCH(bool, delayed);
+        FixtureAccount account;
+        auto open = [&] {
+            auto engine = std::make_unique<QQmlApplicationEngine>();
+            engine->rootContext()->setContextProperty("account", &account);
+            engine->rootContext()->setContextProperty("apiOrigin", qEnvironmentVariable("MISAKA_API")
+                + (delayed ? "/delayed" : "/restore"));
+            engine->load(QUrl("qrc:/Main.qml"));
+            return engine;
+        };
+        auto engine = open();
+        auto *window = qobject_cast<QQuickWindow *>(engine->rootObjects().value(0));
+        QVERIFY(window && QTest::qWaitForWindowExposed(window));
+        if (!delayed) {
+            auto *fallback = window->findChild<QQuickItem *>("avatarFallback");
+            QVERIFY(fallback);
+            QTRY_VERIFY(fallback->isVisible());
+            QCOMPARE(fallback->property("text").toString(), QStringLiteral("测"));
+        }
+        auto *logout = window->findChild<QQuickItem *>("logoutAction");
+        QVERIFY(logout && logout->isVisible());
+        QTest::mouseClick(window, Qt::LeftButton, {}, logout->mapToScene(logout->boundingRect().center()).toPoint());
+        if (delayed) QTest::qWait(650);
+        QVERIFY(account.cleared && !logout->isVisible());
+        engine.reset();
+        engine = open();
+        auto *panel = engine->rootObjects().first()->findChild<QQuickItem *>("accountPanel");
+        QVERIFY(panel);
+        QCOMPARE(panel->property("identity").toString(), QStringLiteral("未登录"));
     }
     void restoredSessionRefusedThenExpired() {
         QQmlApplicationEngine engine;
