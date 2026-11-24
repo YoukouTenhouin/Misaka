@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import threading
+import time
 from urllib.parse import parse_qs, urlsplit
 
 
@@ -26,6 +27,12 @@ class Fixture(BaseHTTPRequestHandler):
             else:
                 return self.send_error(400)
             content = json.dumps({"code": 0, "data": data}).encode()
+            mime = "application/json"
+        elif url.path.startswith(("/restore/", "/delayed/")):
+            if url.path.startswith("/delayed/"):
+                time.sleep(0.5)
+            content = json.dumps({"code": 0, "data": {"isLogin": True, "uname": "测试账号",
+                                                       "face": base + "/missing-avatar"}}).encode()
             mime = "application/json"
         elif url.path.startswith("/account/"):
             if url.path.endswith("/nav"):

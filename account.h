@@ -12,6 +12,7 @@ public:
     Q_INVOKABLE virtual void save();
     Q_INVOKABLE virtual void clearSession();
 signals:
+    void sessionCleared(bool success);
     void restored(bool hasCookies);
     void storageError(QString message);
 };

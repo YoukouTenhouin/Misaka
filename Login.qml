@@ -24,15 +24,24 @@ ColumnLayout {
     property bool validating: false
     property bool ready: false
     property bool persistAfterVerify: false
+    property bool deleting: false
+    property bool deletionFailed: false
     function expire() {
-        ++generation
-        account.clearSession()
-        session = Login.Expired
+        if (session === Login.Authenticated || session === Login.Unverified)
+            forget(Login.Expired)
+    }
+    function forget(nextSession) {
+        cancelRequest()
+        timer.stop()
+        session = nextSession
         username = ""
         avatarUrl = ""
         validating = false
         persistAfterVerify = false
         notice = ""
+        deleting = true
+        deletionFailed = false
+        account.clearSession()
     }
     function get(url, done) {
         const serial = generation
@@ -109,6 +118,11 @@ ColumnLayout {
             login.ready = true
             if (hasCookies) { login.session = Login.Unverified; login.verify() }
         }
+        function onSessionCleared(success) {
+            login.deleting = false
+            login.deletionFailed = !success
+            if (!success) login.notice = "删除已保存的凭据失败，重启后可能恢复登录"
+        }
         function onStorageError(message) { login.notice = message }
     }
     Component.onCompleted: account.restore()
@@ -127,6 +141,7 @@ ColumnLayout {
             }
             Label {
                 anchors.centerIn: parent
+                objectName: "avatarFallback"
                 visible: avatar.status !== Image.Ready
                 text: Array.from(login.username)[0] || ""
             }
@@ -134,13 +149,25 @@ ColumnLayout {
         Label { text: login.identity }
         Button {
             objectName: "accountAction"
-            enabled: login.ready
+            enabled: login.ready && !login.deleting && !login.deletionFailed
             text: login.validating ? "重试验证" : login.session === Login.Expired ? "重新登录" : "扫码登录"
             visible: login.session !== Login.Authenticated
             onClicked: {
                 if (login.validating) { login.cancelRequest(); login.verify() }
                 else { dialog.open(); login.generate() }
             }
+        }
+        Button {
+            objectName: "logoutAction"
+            text: "退出登录"
+            visible: login.session === Login.Authenticated || login.session === Login.Unverified
+            onClicked: login.forget(Login.Guest)
+        }
+        Button {
+            objectName: "retryDelete"
+            text: "重试删除"
+            visible: login.deletionFailed
+            onClicked: login.forget(login.session)
         }
         Label { visible: !dialog.visible; text: login.notice }
     }

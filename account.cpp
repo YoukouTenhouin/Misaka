@@ -59,5 +59,8 @@ void Account::clearSession() {
     setAllCookies({});
     auto *job = new QKeychain::DeletePasswordJob("Misaka", this);
     job->setKey("session");
+    connect(job, &QKeychain::Job::finished, this, [this, job] {
+        emit sessionCleared(!job->error() || job->error() == QKeychain::EntryNotFound);
+    });
     job->start();
 }
