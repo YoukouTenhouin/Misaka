@@ -39,6 +39,7 @@ ApplicationWindow {
             }
             try {
                 const result = JSON.parse(xhr.responseText)
+                if (result.code === -101 && login.item) login.item.expire()
                 if (result.code !== 0) throw Error(result.message || "请求失败")
                 callback(result.data)
             } catch (e) {
@@ -76,6 +77,7 @@ ApplicationWindow {
     ColumnLayout {
         anchors.fill: parent
         spacing: 6
+        Loader { id: login; active: typeof account !== "undefined"; source: "Login.qml" }
         RowLayout {
             Layout.fillWidth: true
             TextField {
