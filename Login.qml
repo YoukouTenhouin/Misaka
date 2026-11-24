@@ -5,7 +5,12 @@ import QtQuick.Layouts
 ColumnLayout {
     id: login
     objectName: "accountPanel"
-    property string identity: "未登录"
+    enum Session { Guest, Unverified, Authenticated, Expired }
+    property int session: Login.Guest
+    property string username: ""
+    property url avatarUrl: ""
+    readonly property string identity: session === Login.Authenticated ? "已登录 · " + username
+        : session === Login.Unverified ? "会话待验证" : session === Login.Expired ? "会话已过期" : "未登录"
     property string notice: ""
     property string qr: ""
     property string key: ""
@@ -22,7 +27,9 @@ ColumnLayout {
     function expire() {
         ++generation
         account.clearSession()
-        identity = "会话已过期"
+        session = Login.Expired
+        username = ""
+        avatarUrl = ""
         validating = false
         persistAfterVerify = false
         notice = ""
@@ -51,7 +58,9 @@ ColumnLayout {
             if (result.code === -101 || (result.code === 0 && result.data.isLogin === false)) {
                 expire()
             } else if (result.code === 0 && result.data.isLogin === true) {
-                identity = "已登录 · " + result.data.uname
+                username = result.data.uname
+                avatarUrl = result.data.face || ""
+                session = Login.Authenticated
                 validating = false
                 notice = ""
                 if (persistAfterVerify) account.save()
@@ -86,7 +95,7 @@ ColumnLayout {
             case 86038: login.notice = "二维码已失效"; login.qr = ""; break
             case 0:
                 dialog.close()
-                login.identity = "会话待验证"
+                login.session = Login.Unverified
                 login.persistAfterVerify = true
                 login.verify()
                 break
@@ -98,18 +107,36 @@ ColumnLayout {
         target: account
         function onRestored(hasCookies) {
             login.ready = true
-            if (hasCookies) { login.identity = "会话待验证"; login.verify() }
+            if (hasCookies) { login.session = Login.Unverified; login.verify() }
         }
         function onStorageError(message) { login.notice = message }
     }
     Component.onCompleted: account.restore()
     RowLayout {
+        Item {
+            visible: login.session === Login.Authenticated
+            Layout.preferredWidth: 32
+            Layout.preferredHeight: 32
+            Image {
+                id: avatar
+                objectName: "accountAvatar"
+                anchors.fill: parent
+                source: login.avatarUrl
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+            }
+            Label {
+                anchors.centerIn: parent
+                visible: avatar.status !== Image.Ready
+                text: Array.from(login.username)[0] || ""
+            }
+        }
         Label { text: login.identity }
         Button {
             objectName: "accountAction"
             enabled: login.ready
-            text: login.validating ? "重试验证" : login.identity === "会话已过期" ? "重新登录" : "扫码登录"
-            visible: !login.identity.startsWith("已登录")
+            text: login.validating ? "重试验证" : login.session === Login.Expired ? "重新登录" : "扫码登录"
+            visible: login.session !== Login.Authenticated
             onClicked: {
                 if (login.validating) { login.cancelRequest(); login.verify() }
                 else { dialog.open(); login.generate() }

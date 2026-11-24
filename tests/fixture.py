@@ -22,7 +22,7 @@ class Fixture(BaseHTTPRequestHandler):
             elif url.path.endswith("/poll"):
                 data = {"code": 0}
             elif url.path.endswith("/nav") and "SESSDATA=test" in self.headers.get("Cookie", ""):
-                data = {"isLogin": True, "uname": "测试账号"}
+                data = {"isLogin": True, "uname": "测试账号", "face": "qrc:/icons/play.svg"}
             else:
                 return self.send_error(400)
             content = json.dumps({"code": 0, "data": data}).encode()
