@@ -8,10 +8,63 @@
 #include <QtEndian>
 #include <cmath>
 #include "video.h"
+#include "account.h"
+#include <QNetworkAccessManager>
+
+class FixtureAccount : public Account {
+public:
+    bool cleared = false;
+    bool existing = true;
+    bool saved = false;
+    void save() override { saved = true; }
+    void restore() override { emit restored(existing); }
+    void clearSession() override { cleared = true; }
+};
 
 class PlaybackTest : public QObject {
     Q_OBJECT
 private slots:
+    void signsInWithQr() {
+        QQmlApplicationEngine engine;
+        auto *account = new FixtureAccount;
+        account->existing = false;
+        engine.networkAccessManager()->setCookieJar(account);
+        engine.rootContext()->setContextProperty("account", account);
+        const auto origin = qEnvironmentVariable("MISAKA_API") + "/qr";
+        engine.rootContext()->setContextProperty("apiOrigin", origin);
+        engine.rootContext()->setContextProperty("passportOrigin", origin);
+        engine.load(QUrl("qrc:/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        auto *action = window->findChild<QQuickItem *>("accountAction");
+        auto *panel = window->findChild<QQuickItem *>("accountPanel");
+        QVERIFY(action && panel);
+        QTest::mouseClick(window, Qt::LeftButton, {}, action->mapToScene(action->boundingRect().center()).toPoint());
+        QTRY_VERIFY(panel->property("qr").toString().startsWith("data:image/png"));
+        QTRY_COMPARE(panel->property("identity").toString(), QStringLiteral("已登录 · 测试账号"));
+        QVERIFY(account->saved);
+    }
+    void restoredSessionRefusedThenExpired() {
+        QQmlApplicationEngine engine;
+        auto *account = new FixtureAccount;
+        engine.networkAccessManager()->setCookieJar(account);
+        engine.rootContext()->setContextProperty("account", account);
+        engine.rootContext()->setContextProperty("apiOrigin", qEnvironmentVariable("MISAKA_API") + "/account");
+        engine.load(QUrl("qrc:/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        auto *panel = window->findChild<QQuickItem *>("accountPanel");
+        auto *action = window->findChild<QQuickItem *>("accountAction");
+        QVERIFY(panel && action);
+        QTRY_COMPARE(panel->property("notice").toString(), QStringLiteral("服务拒绝请求 (412)"));
+        QCOMPARE(panel->property("identity").toString(), QStringLiteral("会话待验证"));
+        QVERIFY(!account->cleared);
+        QTest::mouseClick(window, Qt::LeftButton, {}, action->mapToScene(action->boundingRect().center()).toPoint());
+        QTRY_COMPARE(action->property("text").toString(), QStringLiteral("重新登录"));
+        QVERIFY(account->cleared);
+    }
     void opensP1AndSeeks() {
         QTest::failOnWarning(QRegularExpression(QStringLiteral(".*Cannot open file.*icons/.*[.]svg.*")));
         QQmlApplicationEngine engine;

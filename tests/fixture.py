@@ -16,6 +16,27 @@ class Fixture(BaseHTTPRequestHandler):
         if url.path in ("/video.mp4", "/audio.mp4"):
             content = (Path(__file__).parent / "media" / url.path[1:]).read_bytes()
             mime = "video/mp4"
+        elif url.path.startswith("/qr/"):
+            if url.path.endswith("/generate"):
+                data = {"url": "https://example.test/login", "qrcode_key": "fixture"}
+            elif url.path.endswith("/poll"):
+                data = {"code": 0}
+            elif url.path.endswith("/nav") and "SESSDATA=test" in self.headers.get("Cookie", ""):
+                data = {"isLogin": True, "uname": "测试账号"}
+            else:
+                return self.send_error(400)
+            content = json.dumps({"code": 0, "data": data}).encode()
+            mime = "application/json"
+        elif url.path.startswith("/account/"):
+            if url.path.endswith("/nav"):
+                if not getattr(self.server, "refused", False):
+                    self.server.refused = True
+                    return self.send_error(412)
+                result = {"code": -101}
+            else:
+                return self.send_error(404)
+            content = json.dumps(result).encode()
+            mime = "application/json"
         else:
             if query.get("bvid") != ["BV17x411w7KC"]:
                 return self.send_error(404)
@@ -39,6 +60,8 @@ class Fixture(BaseHTTPRequestHandler):
             self.send_header("Content-Range", f"bytes {start}-{end}/{total}")
         else:
             self.send_response(200)
+        if url.path.endswith("/poll"):
+            self.send_header("Set-Cookie", "SESSDATA=test; Path=/; HttpOnly")
         self.send_header("Accept-Ranges", "bytes")
         self.send_header("Content-Type", mime)
         self.send_header("Content-Length", str(len(content)))
